@@ -1,6 +1,10 @@
 # Mechrevo-Fan-Control
 适用于机械革命14/16的风扇控制小程序
 
+# 注意事项
+必须先安装 [**WINIOSetup.exe**](https://github.com/bavelee/Mechrevo-Fan-Control/releases/download/must-files-1/WINIOSetup.exe), 否则程序无效，可以在Release中下载到。
+
+# 使用方法
 ```bash
 fan-control : 适用于机械革命无界14/16 风扇控制(v0.0.1-20220716)
 
