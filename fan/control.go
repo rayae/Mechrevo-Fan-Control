@@ -1,22 +1,32 @@
 package fan
 
 import (
-	"fmt"
+	"github.com/bavelee/mfc/fan/dll"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
 type RegisterControl interface {
-	SetRegisterValue(code OperationCode)
-	GetRegisterValue(code OperationCode) interface{}
+	SetRegisterValue([]uint32)
+	GetRegisterValue([]uint32) uintptr
 }
 
 type RegCtrl struct {
 	RegisterControl
 }
 
-func (regCtrl RegCtrl) SetConsoleCtrlHandler() {
+var regCtrl *RegCtrl
+
+func init() {
+	regCtrl = &RegCtrl{RegisterControl: dll.Control{}}
+}
+
+func GetRegCtrl() *RegCtrl {
+	return regCtrl
+}
+
+func (regCtrl *RegCtrl) SetConsoleCtrlHandler() {
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -25,21 +35,25 @@ func (regCtrl RegCtrl) SetConsoleCtrlHandler() {
 		os.Exit(0)
 	}()
 }
-func (regCtrl RegCtrl) SetFanControlStatus(on bool) {
+func (regCtrl *RegCtrl) SetFanControlStatus(on bool) {
 	if on {
-		regCtrl.SetRegisterValue(CreateOperationCode(AutoControl, ON))
+		regCtrl.SetRegisterValue(BuildForSetFanSpeed(AutoControl, ON))
 	} else {
-		regCtrl.SetRegisterValue(CreateOperationCode(AutoControl, OFF))
+		regCtrl.SetRegisterValue(BuildForSetFanSpeed(AutoControl, OFF))
 	}
 }
 
-func (regCtrl RegCtrl) TurnOnFanControl() {
+func (regCtrl *RegCtrl) GetFanControlStatus() bool {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(AutoControl))
+	return int(value) == ON
+}
+
+func (regCtrl *RegCtrl) TurnOnFanControl() {
 	regCtrl.SetFanControlStatus(true)
 }
 
-func (regCtrl RegCtrl) TurnOffFanControl() {
+func (regCtrl *RegCtrl) TurnOffFanControl() {
 	regCtrl.SetFanControlStatus(false)
-	fmt.Printf("手动风扇控制关闭\n")
 }
 
 func formatSpeed(rate, max int) uint32 {
@@ -52,12 +66,32 @@ func formatSpeed(rate, max int) uint32 {
 	return uint32(max * rate / 100)
 }
 
-func (regCtrl RegCtrl) SetLeftFan(rate int) {
-	regCtrl.SetRegisterValue(CreateOperationCode(Left, formatSpeed(rate, 127)))
-	fmt.Printf("左侧风扇转速设置为 : %d%%\n", rate)
+func (regCtrl *RegCtrl) SetCPUFanSpeed(rate int) {
+	regCtrl.SetRegisterValue(BuildForSetFanSpeed(CPUFanControl, formatSpeed(rate, 127)))
 }
 
-func (regCtrl RegCtrl) SetRightFan(rate int) {
-	regCtrl.SetRegisterValue(CreateOperationCode(Right, formatSpeed(rate, 127)))
-	fmt.Printf("右侧风扇转速设置为 : %d%%\n", rate)
+func (regCtrl *RegCtrl) SetGPUFanSpeed(rate int) {
+	regCtrl.SetRegisterValue(BuildForSetFanSpeed(GPUFanControl, formatSpeed(rate, 127)))
+}
+func (regCtrl *RegCtrl) GetCpuTemperature() int {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(GetCpuTemperature))
+	return int(value)
+}
+func (regCtrl *RegCtrl) GetEnvTemperature() int {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(GetEnvTemperature))
+	return int(value)
+}
+func (regCtrl *RegCtrl) GetDC() int {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(GetDc))
+	return int(value)
+}
+
+func (regCtrl *RegCtrl) GetCPUFanSpeed() int {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(GetCPUFanSpeed))
+	return int(value)
+}
+
+func (regCtrl *RegCtrl) GetGPUFanSpeed() int {
+	value := regCtrl.GetRegisterValue(BuildForGetValue(GetGPUFanSpeed))
+	return int(value)
 }

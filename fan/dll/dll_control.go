@@ -1,57 +1,41 @@
 package dll
 
 import (
-	"Mechrevo-16Pro-FanCtrl/fan"
 	_ "embed"
-	"fmt"
+	"github.com/bavelee/mfc/cfg"
+	"go.uber.org/zap"
 	"io/fs"
-	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"syscall"
 )
-
-/**
- * @Author: Bave Lee
- * @Date: 2022/7/16 8:56
- * @Desc:
- */
 
 type Control struct{}
 
 var initialized = false
 var wrRdIO *syscall.LazyDLL
 var setReg *syscall.LazyProc
+var getReg *syscall.LazyProc
 
 //go:embed WrRdIO.dll
 var dllByte []byte
 
 func initialize() {
-	saveDir, exists := os.LookupEnv("AppData")
-	if !exists {
-		executable, err := os.Executable()
-		if err == nil {
-			saveDir = path.Dir(executable)
-		} else {
-			saveDir = "./"
-		}
-	}
-	dllPath := path.Join(saveDir, "WrRdIO.dll")
-	err := ioutil.WriteFile(dllPath, dllByte, fs.ModePerm)
+	dllPath := filepath.Join(cfg.Home, "WrRdIO.dll")
+	err := os.WriteFile(dllPath, dllByte, fs.ModePerm)
 	if err != nil {
-		fmt.Printf("无法解压文件: %s 到 %v\n", "WrRdIO.dll", dllPath)
-		return
+		zap.S().Fatalf("无法解压文件: %s 到 %v\n", "WrRdIO.dll", dllPath)
 	}
 	wrRdIO = syscall.NewLazyDLL(dllPath)
 	setReg = wrRdIO.NewProc("_SetRegisterValue@40")
-	if wrRdIO == nil || setReg == nil {
-		fmt.Printf("无法加载 WrRdIO.dll\n")
-		return
+	getReg = wrRdIO.NewProc("_GetRegisterValue@36")
+	if wrRdIO == nil || setReg == nil || getReg == nil {
+		zap.S().Fatalf("无法加载 WrRdIO.dll")
 	}
 	initialized = true
 }
 
-func invoke(args ...uint32) {
+func invoke(callSet bool, args ...uint32) uintptr {
 	if !initialized {
 		initialize()
 	}
@@ -59,16 +43,20 @@ func invoke(args ...uint32) {
 	for _, arg := range args {
 		params = append(params, uintptr(arg))
 	}
-	ret1, ret2, lastErr := setReg.Call(params...)
-	if false {
-		fmt.Printf("SetRegisterValue ret1=%v ret2=%v lastErr=%v\n", ret1, ret2, lastErr)
+	var proc = getReg
+	if callSet {
+		proc = setReg
 	}
+	ret1, _, _ := proc.Call(params...)
+	return ret1
 }
 
-func (Control) SetRegisterValue(code fan.OperationCode) {
-	invoke(code.Addr, code.Offset, code.Opcode, code.Fan, code.Speed, 6, 7, 8, 1, 2)
+func (Control) SetRegisterValue(code []uint32) {
+	code = append(code, 6, 7, 8, 1, 2)
+	invoke(true, code...)
 }
 
-func (Control) GetRegisterValue(code fan.OperationCode) interface{} {
-	return nil
+func (Control) GetRegisterValue(code []uint32) uintptr {
+	code = append(code, 6, 7, 8, 1, 1)
+	return invoke(false, code...)
 }

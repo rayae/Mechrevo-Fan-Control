@@ -1,0 +1,3 @@
+work-mode: system
+start-with-windows: true
+refresh-interval: 3000
